@@ -7,6 +7,9 @@
         let active = null;
 
         for (const v of videos) {
+            // Skip ad videos (usually < 20s)
+            if (v.duration && v.duration < 20) continue;
+
             // YouTube's fake videos have frozen currentTime
             if (v.readyState >= 2 && v.currentTime !== lastTime) {
                 active = v;
@@ -25,6 +28,7 @@
         }
     }
 
+    // Poll every 100ms for the real active video
     setInterval(() => {
         const v = getRealVideo();
         if (!v) return;
@@ -40,5 +44,5 @@
             // Also bind play event
             v.addEventListener("play", () => switchPiP(v));
         }
-    }, 200);
+    }, 100);
 })();
