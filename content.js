@@ -1,73 +1,44 @@
 (function () {
-    let pipVideo = null;
+    let lastVideo = null;
+    let lastTime = 0;
 
-    function findVideo() {
-        let videos = [...document.querySelectorAll("video")];
+    function getRealVideo() {
+        const videos = document.querySelectorAll("video");
+        let active = null;
 
-        if (!videos.length) return null;
+        for (const v of videos) {
+            // YouTube's fake videos have frozen currentTime
+            if (v.readyState >= 2 && v.currentTime !== lastTime) {
+                active = v;
+                lastTime = v.currentTime;
+            }
+        }
 
-        // Pick the visible playing video
-        return videos.find(v =>
-            !v.paused &&
-            v.readyState >= 2 &&
-            v.offsetWidth > 0 &&
-            v.offsetHeight > 0
-        ) || videos[0];
+        return active;
     }
 
-    async function switchPiP() {
-        let video = findVideo();
+    function switchPiP(video) {
+        if (!video || video.disablePictureInPicture) return;
 
-        if (!video) return;
-
-        if (video === pipVideo) return;
-
-        pipVideo = video;
-
-        try {
-            if (document.pictureInPictureElement) {
-                await document.exitPictureInPicture();
-            }
-        } catch {}
-
-        try {
-            if (!video.disablePictureInPicture) {
-                await video.requestPictureInPicture();
-            }
-        } catch {}
+        if (document.pictureInPictureElement !== video) {
+            video.requestPictureInPicture().catch(() => {});
+        }
     }
 
+    setInterval(() => {
+        const v = getRealVideo();
+        if (!v) return;
 
-    // Detect when sites replace the player
-    const observer = new MutationObserver(() => {
-        setTimeout(() => {
-            switchPiP();
-        }, 500);
-    });
+        if (v !== lastVideo) {
+            lastVideo = v;
 
-    observer.observe(document.documentElement, {
-        childList: true,
-        subtree: true
-    });
+            // If already playing, switch immediately
+            if (!v.paused) {
+                switchPiP(v);
+            }
 
-
-    // Detect normal play events
-    document.addEventListener("play", e => {
-        if (e.target.tagName === "VIDEO") {
-            setTimeout(switchPiP, 200);
+            // Also bind play event
+            v.addEventListener("play", () => switchPiP(v));
         }
-    }, true);
-
-
-    // Detect source changes
-    document.addEventListener("loadeddata", e => {
-        if (e.target.tagName === "VIDEO") {
-            setTimeout(switchPiP, 200);
-        }
-    }, true);
-
-
-    // Initial attempt
-    switchPiP();
-
+    }, 200);
 })();
